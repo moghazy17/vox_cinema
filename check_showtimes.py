@@ -14,13 +14,26 @@ from zoneinfo import ZoneInfo
 
 import requests
 from bs4 import BeautifulSoup
+from curl_cffi import requests as cffi_requests
 
 SHOWTIMES_URL = "https://egy.voxcinemas.com/showtimes?c={cinema}&m={movie}&d={date}"
 TELEGRAM_URL = "https://api.telegram.org/bot{token}/sendMessage"
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-)
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Upgrade-Insecure-Requests": "1",
+}
 DEFAULT_STATE_PATH = Path(__file__).parent / "state.json"
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
@@ -82,16 +95,22 @@ def next_target_date(weekday: str, tz: str, now: Optional[datetime] = None) -> d
 
 
 def fetch_page(url: str, attempts: int = 3, timeout: int = 20) -> str:
-    """GET `url` with a browser UA, retrying on network errors and 5xx."""
+    """GET `url` impersonating Chrome's TLS fingerprint; retry on network errors and 5xx.
+
+    VOX's WAF rejects plain `requests`/`urllib3` TLS handshakes, so we use curl_cffi.
+    """
     last_err: Optional[Exception] = None
     for i in range(attempts):
         try:
-            r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=timeout)
+            r = cffi_requests.get(
+                url, headers=BROWSER_HEADERS, timeout=timeout, impersonate="chrome124"
+            )
             if 500 <= r.status_code < 600:
-                raise requests.HTTPError(f"server error {r.status_code}")
-            r.raise_for_status()
+                raise RuntimeError(f"server error {r.status_code}")
+            if r.status_code >= 400:
+                raise RuntimeError(f"HTTP {r.status_code}")
             return r.text
-        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
+        except Exception as e:  # noqa: BLE001 — curl_cffi raises its own errors
             last_err = e
             backoff = 2 ** i
             log.warning("fetch attempt %d/%d failed: %s (sleeping %ds)", i + 1, attempts, e, backoff)
@@ -107,26 +126,29 @@ def parse_showtimes(html: str) -> "dict[str, list[Showtime]]":
     missing entirely, logs a warning and returns an empty dict (treated as 'not yet').
     """
     soup = BeautifulSoup(html, "html.parser")
-    container = soup.find("ol", class_="showtimes")
-    if container is None:
-        log.warning("showtimes container not found — page structure may have changed")
+    anchors = soup.select("a.action.showtime")
+    if not anchors:
         return {}
 
     groups: dict[str, list[Showtime]] = {}
-    for group_li in container.find_all("li", recursive=False):
-        label_el = group_li.find("strong")
-        if not label_el:
+    for a in anchors:
+        text = a.get_text(strip=True)
+        href = (a.get("href") or "").strip()
+        if not text or not href:
             continue
-        screen_type = label_el.get_text(strip=True)
-        times: list[Showtime] = []
-        for a in group_li.find_all("a", class_="action showtime"):
-            text = a.get_text(strip=True)
-            href = a.get("href", "").strip()
-            if text and href:
-                times.append(Showtime(time=text, href=href))
-        if times:
-            groups[screen_type] = times
+        label = _find_group_label(a)
+        groups.setdefault(label, []).append(Showtime(time=text, href=href))
     return groups
+
+
+def _find_group_label(anchor) -> str:
+    """Walk up from a showtime anchor to find the nearest <strong> group label."""
+    for parent in anchor.parents:
+        if parent.name == "li":
+            strong = parent.find("strong", recursive=False)
+            if strong and strong.get_text(strip=True):
+                return strong.get_text(strip=True)
+    return "Showtimes"
 
 
 def extract_display_names(html: str, cinema_slug: str, movie_slug: str) -> "tuple[str, str]":

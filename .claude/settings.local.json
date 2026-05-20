@@ -4,7 +4,13 @@
       "Bash(bash ~/.claude/statusline-command.sh)",
       "Bash(python -m pip install -q requests beautifulsoup4 pytest)",
       "Bash(python -m pytest tests/ -q)",
-      "Bash(python -m pip install -q tzdata)"
+      "Bash(python -m pip install -q tzdata)",
+      "Bash(gh --version)",
+      "Bash(gh run *)",
+      "Bash(curl *)",
+      "Bash(python check_showtimes.py)",
+      "Bash(CINEMA_SLUG=city-centre-almaza MOVIE_SLUG=the-devil-wears-prada-2 TELEGRAM_BOT_TOKEN=x TELEGRAM_CHAT_ID=x python check_showtimes.py)",
+      "Bash(python -m pip install -q curl_cffi)"
     ]
   }
 }
