@@ -10,7 +10,19 @@
       "Bash(curl *)",
       "Bash(python check_showtimes.py)",
       "Bash(CINEMA_SLUG=city-centre-almaza MOVIE_SLUG=the-devil-wears-prada-2 TELEGRAM_BOT_TOKEN=x TELEGRAM_CHAT_ID=x python check_showtimes.py)",
-      "Bash(python -m pip install -q curl_cffi)"
+      "Bash(python -m pip install -q curl_cffi)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(python -m pip install -q python-dotenv)",
+      "Bash(python send_test_message.py)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(gh workflow *)",
+      "Bash(git commit *)",
+      "Bash(gh variable *)",
+      "Bash(gh secret *)",
+      "Bash(TELEGRAM_BOT_TOKEN=8033960614:AAF7viqS1_OmMG96IAHMQxhI86cf4hZGyYg python -c ' *)"
     ]
   }
 }
