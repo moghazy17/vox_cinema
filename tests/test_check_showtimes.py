@@ -32,21 +32,27 @@ def test_next_target_date_when_target_is_future():
 
 
 def test_parse_no_showtimes_returns_empty():
-    assert parse_showtimes(_read("no_showtimes.html")) == {}
+    # An empty AJAX fragment means the date has no showtimes scheduled yet.
+    assert parse_showtimes(_read("scene_no_showtimes.html")) == {}
+    assert parse_showtimes("   \n  ") == {}
 
 
-def test_parse_single_screen():
-    groups = parse_showtimes(_read("with_showtimes.html"))
-    assert list(groups.keys()) == ["Standard"]
-    times = [s.time for s in groups["Standard"]]
-    assert times == ["12:00pm", "3:00pm", "6:00pm", "9:00pm"]
-    assert groups["Standard"][0].href == "https://egy.voxcinemas.com/booking/0047-257273"
+def test_parse_groups_by_experience():
+    groups = parse_showtimes(_read("scene_with_showtimes.html"))
+    assert list(groups.keys()) == ["IMAX", "Premiere", "Standard & Deluxe"]
+    assert [s.time for s in groups["IMAX"]] == ["04:00 PM", "08:00 PM", "12:00 AM"]
+    assert [s.time for s in groups["Standard & Deluxe"]] == ["04:00 PM"]
 
 
-def test_parse_multi_screen_groups():
-    groups = parse_showtimes(_read("multi_screen_showtimes.html"))
-    assert list(groups.keys()) == ["Standard", "IMAX"]
-    assert len(groups["Standard"]) == 4
-    assert len(groups["IMAX"]) == 2
-    assert [s.time for s in groups["IMAX"]] == ["2:00pm", "8:00pm"]
-    assert groups["IMAX"][1].href == "https://egy.voxcinemas.com/booking/0047-257301"
+def test_parse_marks_soldout_and_bookable():
+    groups = parse_showtimes(_read("scene_with_showtimes.html"))
+    imax = {s.time: s for s in groups["IMAX"]}
+    # 08:00 PM has a real booking link; the others are struck-through / void hrefs.
+    assert imax["08:00 PM"].soldout is False
+    assert imax["08:00 PM"].href.startswith("https://district5.scenecinemas.com/showtime-")
+    assert imax["04:00 PM"].soldout is True
+    assert imax["12:00 AM"].soldout is True
+    # Premiere is entirely sold out.
+    assert all(s.soldout for s in groups["Premiere"])
+    # Standard & Deluxe 04:00 PM is bookable.
+    assert groups["Standard & Deluxe"][0].soldout is False

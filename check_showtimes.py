@@ -1,9 +1,20 @@
-"""Poll VOX Cinemas Egypt for showtimes on a target weekday and notify via Telegram."""
+"""Poll Scene Cinemas (District 5) for showtimes on a target weekday and notify via Telegram.
+
+Scene Cinemas exposes a rolling window of dates on the movie-details page. Each date's
+showtimes are loaded via an AJAX fragment:
+
+    https://district5.scenecinemas.com/movie-details/<movie>.html?business_day=DD-MM-YYYY&ajax=1
+
+A date that has no showtimes yet (e.g. a future date beyond the published window) returns
+an empty body. So "the target Friday is available" == "the fragment for that date contains
+showtimes". We fetch the fragment for the next target weekday, parse it, and notify once.
+"""
 from __future__ import annotations
 
 import json
 import logging
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -16,7 +27,9 @@ import requests
 from bs4 import BeautifulSoup
 from curl_cffi import requests as cffi_requests
 
-SHOWTIMES_URL = "https://egy.voxcinemas.com/showtimes?c={cinema}&m={movie}&d={date}"
+# {base} is the movie-details URL; {date} is DD-MM-YYYY.
+SHOWTIMES_URL = "{base}?business_day={date}&ajax=1"
+DEFAULT_MOVIE_BASE = "https://district5.scenecinemas.com/movie-details/{movie}.html"
 TELEGRAM_URL = "https://api.telegram.org/bot{token}/sendMessage"
 BROWSER_HEADERS = {
     "User-Agent": (
@@ -26,25 +39,25 @@ BROWSER_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
+    "X-Requested-With": "XMLHttpRequest",
     "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": '"Windows"',
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
 }
 DEFAULT_STATE_PATH = Path(__file__).parent / "state.json"
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
-log = logging.getLogger("vox_notifier")
+log = logging.getLogger("scene_notifier")
 
 
 @dataclass(frozen=True)
 class Config:
     """Runtime configuration loaded from environment variables."""
-    cinema_slug: str
     movie_slug: str
+    movie_base: str
     target_weekday: str
     timezone: str
     telegram_token: str
@@ -56,13 +69,12 @@ class Showtime:
     """A single showtime entry parsed from the page."""
     time: str
     href: str
+    soldout: bool = False
 
 
 def load_config() -> Config:
     """Read and validate required env vars; raise on missing required ones."""
     required = {
-        "CINEMA_SLUG": os.environ.get("CINEMA_SLUG"),
-        "MOVIE_SLUG": os.environ.get("MOVIE_SLUG"),
         "TELEGRAM_BOT_TOKEN": os.environ.get("TELEGRAM_BOT_TOKEN"),
         "TELEGRAM_CHAT_ID": os.environ.get("TELEGRAM_CHAT_ID"),
     }
@@ -74,9 +86,14 @@ def load_config() -> Config:
     if weekday not in WEEKDAYS:
         raise RuntimeError(f"TARGET_WEEKDAY must be one of {WEEKDAYS}, got {weekday!r}")
 
+    movie_slug = (os.environ.get("MOVIE_SLUG") or "the-odyssey").strip()
+    movie_base = (os.environ.get("MOVIE_BASE_URL") or DEFAULT_MOVIE_BASE).strip()
+    if "{movie}" in movie_base:
+        movie_base = movie_base.format(movie=movie_slug)
+
     return Config(
-        cinema_slug=required["CINEMA_SLUG"],
-        movie_slug=required["MOVIE_SLUG"],
+        movie_slug=movie_slug,
+        movie_base=movie_base,
         target_weekday=weekday,
         timezone=(os.environ.get("TIMEZONE") or "Africa/Cairo").strip(),
         telegram_token=required["TELEGRAM_BOT_TOKEN"],
@@ -97,7 +114,7 @@ def next_target_date(weekday: str, tz: str, now: Optional[datetime] = None) -> d
 def fetch_page(url: str, attempts: int = 3, timeout: int = 20) -> str:
     """GET `url` impersonating Chrome's TLS fingerprint; retry on network errors and 5xx.
 
-    VOX's WAF rejects plain `requests`/`urllib3` TLS handshakes, so we use curl_cffi.
+    The site's WAF rejects plain `requests`/`urllib3` TLS handshakes, so we use curl_cffi.
     """
     last_err: Optional[Exception] = None
     for i in range(attempts):
@@ -120,54 +137,56 @@ def fetch_page(url: str, attempts: int = 3, timeout: int = 20) -> str:
 
 
 def parse_showtimes(html: str) -> "dict[str, list[Showtime]]":
-    """Parse the showtimes page, returning {screen_type: [Showtime, ...]} preserving order.
+    """Parse the Scene Cinemas AJAX fragment, returning {screen_type: [Showtime, ...]}.
 
-    Returns an empty dict if no showtimes are present. If the expected container is
-    missing entirely, logs a warning and returns an empty dict (treated as 'not yet').
+    Showtimes are grouped by an experience label span (e.g. `IMAX`, `Premiere`,
+    `Standard & Deluxe`) whose class starts with `ex_`. Sold-out entries carry the
+    `showtime_soldout` class and a `javascript:void(0)` href. Returns an empty dict when
+    the fragment is empty (no showtimes scheduled yet for that date).
     """
-    soup = BeautifulSoup(html, "html.parser")
-    anchors = soup.select("a.action.showtime")
-    if not anchors:
+    text = html.strip()
+    if not text:
         return {}
 
+    soup = BeautifulSoup(html, "html.parser")
     groups: dict[str, list[Showtime]] = {}
-    for a in anchors:
-        text = a.get_text(strip=True)
-        href = (a.get("href") or "").strip()
-        if not text or not href:
+
+    # Each experience label is a <span class="ex_imax|ex_vip|ex_stand|...">. The content
+    # wrapper divs are `ex_*_content`, so exclude those to keep only label spans.
+    label_spans = soup.find_all(
+        "span", class_=lambda c: bool(c) and any(
+            cls.startswith("ex_") and not cls.endswith("_content") for cls in c.split()
+        )
+    )
+    for span in label_spans:
+        label = span.get_text(strip=True)
+        if not label:
             continue
-        label = _find_group_label(a)
-        groups.setdefault(label, []).append(Showtime(time=text, href=href))
+        container = span.find_parent("div")
+        if container is None:
+            continue
+        for a in container.select("ul li a"):
+            time_text = a.get_text(strip=True)
+            if not time_text:
+                continue
+            classes = a.get("class") or []
+            href = (a.get("href") or "").strip()
+            soldout = "showtime_soldout" in classes or href.lower().startswith("javascript:")
+            groups.setdefault(label, []).append(
+                Showtime(time=time_text, href=href, soldout=soldout)
+            )
     return groups
 
 
-def _find_group_label(anchor) -> str:
-    """Walk up from a showtime anchor to find the nearest <strong> group label."""
-    for parent in anchor.parents:
-        if parent.name == "li":
-            strong = parent.find("strong", recursive=False)
-            if strong and strong.get_text(strip=True):
-                return strong.get_text(strip=True)
-    return "Showtimes"
-
-
-def extract_display_names(html: str, cinema_slug: str, movie_slug: str) -> "tuple[str, str]":
-    """Pull movie title and cinema name from page meta/headings, with slug fallbacks."""
-    soup = BeautifulSoup(html, "html.parser")
-
+def extract_display_names(html: str, movie_slug: str) -> "tuple[str, str]":
+    """Return (movie_title, cinema_name); cinema comes from the fragment's branch label."""
     movie = _title_from_slug(movie_slug)
-    og = soup.find("meta", attrs={"property": "og:title"})
-    if og and og.get("content"):
-        movie = og["content"].strip()
-    else:
-        h1 = soup.find("h1")
-        if h1 and h1.get_text(strip=True):
-            movie = h1.get_text(strip=True)
 
-    cinema = _title_from_slug(cinema_slug)
-    breadcrumb = soup.find(class_="cinema-name") or soup.find("h2")
-    if breadcrumb and breadcrumb.get_text(strip=True):
-        cinema = breadcrumb.get_text(strip=True)
+    cinema = "Scene Cinemas — District 5"
+    soup = BeautifulSoup(html, "html.parser")
+    branch = soup.find(class_="branch")
+    if branch and branch.get_text(strip=True):
+        cinema = re.sub(r"\s+", " ", branch.get_text(strip=True)).strip()
 
     return movie, cinema
 
@@ -189,7 +208,12 @@ def format_message(movie: str, cinema: str, target_date: date,
         lines.append("")
         lines.append(f"<b>{screen_type}</b>")
         for st in times:
-            lines.append(f"• <a href=\"{st.href}\">{st.time}</a>")
+            if st.soldout:
+                lines.append(f"• <s>{st.time}</s> (sold out)")
+            elif st.href:
+                lines.append(f"• <a href=\"{st.href}\">{st.time}</a>")
+            else:
+                lines.append(f"• {st.time}")
     return "\n".join(lines)
 
 
@@ -233,9 +257,10 @@ def main() -> int:
 
     cfg = load_config()
     target = next_target_date(cfg.target_weekday, cfg.timezone)
-    date_str = target.strftime("%Y%m%d")
-    url = SHOWTIMES_URL.format(cinema=cfg.cinema_slug, movie=cfg.movie_slug, date=date_str)
-    log.info("checking %s for %s at %s on %s", cfg.movie_slug, cfg.target_weekday, cfg.cinema_slug, date_str)
+    business_day = target.strftime("%d-%m-%Y")   # Scene Cinemas date format
+    dedupe_key = target.strftime("%Y%m%d")       # internal, sortable state key
+    url = SHOWTIMES_URL.format(base=cfg.movie_base, date=business_day)
+    log.info("checking %s for %s on %s", cfg.movie_slug, cfg.target_weekday, business_day)
     log.info("URL: %s", url)
 
     html = fetch_page(url)
@@ -243,23 +268,24 @@ def main() -> int:
     total = sum(len(v) for v in groups.values())
 
     if total == 0:
-        log.info("No showtimes yet for %s", date_str)
+        log.info("No showtimes yet for %s", business_day)
         return 0
 
-    log.info("Found %d showtimes across %d screen types: %s",
-             total, len(groups), ", ".join(groups.keys()))
+    bookable = sum(1 for v in groups.values() for s in v if not s.soldout)
+    log.info("Found %d showtimes (%d bookable) across %d screen types: %s",
+             total, bookable, len(groups), ", ".join(groups.keys()))
 
     state = load_state(DEFAULT_STATE_PATH)
-    if state.get("notified_for") == date_str:
-        log.info("Already notified for %s", date_str)
+    if state.get("notified_for") == dedupe_key:
+        log.info("Already notified for %s", dedupe_key)
         return 0
 
-    movie, cinema = extract_display_names(html, cfg.cinema_slug, cfg.movie_slug)
+    movie, cinema = extract_display_names(html, cfg.movie_slug)
     text = format_message(movie, cinema, target, groups)
     send_telegram(cfg.telegram_token, cfg.telegram_chat_id, text)
-    log.info("Telegram notification sent for %s", date_str)
+    log.info("Telegram notification sent for %s", dedupe_key)
 
-    save_state(DEFAULT_STATE_PATH, {"notified_for": date_str})
+    save_state(DEFAULT_STATE_PATH, {"notified_for": dedupe_key})
     return 0
 
 

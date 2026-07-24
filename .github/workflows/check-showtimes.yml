@@ -25,8 +25,8 @@ jobs:
 
       - name: Run showtime check
         env:
-          CINEMA_SLUG: ${{ vars.CINEMA_SLUG }}
           MOVIE_SLUG: ${{ vars.MOVIE_SLUG }}
+          MOVIE_BASE_URL: ${{ vars.MOVIE_BASE_URL }}
           TARGET_WEEKDAY: ${{ vars.TARGET_WEEKDAY }}
           TIMEZONE: ${{ vars.TIMEZONE }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

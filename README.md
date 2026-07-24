@@ -1,13 +1,21 @@
-# VOX Cinemas Showtime Notifier
+# Scene Cinemas Showtime Notifier
 
-Polls [VOX Cinemas Egypt](https://egy.voxcinemas.com/) every 20 minutes via GitHub Actions and sends you a Telegram message the moment showtimes go live for a specific movie at a specific cinema on the next occurrence of a target weekday (e.g. next Friday). One notification per target date — no spam.
+Polls [Scene Cinemas — District 5](https://district5.scenecinemas.com/) every 20 minutes via GitHub Actions and sends you a Telegram message the moment showtimes go live for a specific movie on the next occurrence of a target weekday (e.g. next Friday). One notification per target date — no spam.
 
 ## How it works
 
 1. A scheduled workflow runs `check_showtimes.py` every 20 minutes.
 2. The script computes the next target weekday in `Africa/Cairo` (or whatever timezone you set).
-3. It fetches `https://egy.voxcinemas.com/showtimes?c=<cinema>&m=<movie>&d=<YYYYMMDD>` and looks for `<a class="action showtime">` entries.
-4. If any are found and `state.json` shows it has not already notified for this date, it posts a Telegram message and writes the date back to `state.json`. The workflow then commits the updated `state.json` to the repo.
+3. It fetches the movie's AJAX showtimes fragment for that date:
+   `https://district5.scenecinemas.com/movie-details/<movie>.html?business_day=<DD-MM-YYYY>&ajax=1`.
+   Scene Cinemas only publishes a rolling window of upcoming dates, so a date with no
+   showtimes scheduled yet returns an **empty** body — that's how "not available yet" is
+   detected. Once the target date goes live, the fragment contains showtimes grouped by
+   experience (IMAX, Premiere, Standard & Deluxe), each with a booking link or a
+   struck-through "sold out" marker.
+4. If showtimes are found and `state.json` shows it has not already notified for this date,
+   it posts a Telegram message and writes the date back to `state.json`. The workflow then
+   commits the updated `state.json` to the repo.
 
 ## One-time setup
 
@@ -35,14 +43,14 @@ Push this repo to GitHub, then go to **Settings → Secrets and variables → Ac
 
 **Variables:**
 
-| Name | Example |
-| --- | --- |
-| `CINEMA_SLUG`    | `city-centre-almaza` |
-| `MOVIE_SLUG`     | `the-devil-wears-prada-2` |
-| `TARGET_WEEKDAY` | `friday` (any lowercase weekday name) |
-| `TIMEZONE`       | `Africa/Cairo` |
+| Name | Example | Notes |
+| --- | --- | --- |
+| `MOVIE_SLUG`     | `the-odyssey` | From the movie-details URL |
+| `TARGET_WEEKDAY` | `friday` | Any lowercase weekday name |
+| `TIMEZONE`       | `Africa/Cairo` | |
+| `MOVIE_BASE_URL` | _(optional)_ | Override the full movie-details URL; defaults to `https://district5.scenecinemas.com/movie-details/{movie}.html`. Use `{movie}` as a placeholder for `MOVIE_SLUG`, or set a fully-qualified URL for a different branch/movie. |
 
-You can find the slugs by browsing voxcinemas.com — they appear in the URL when you select a cinema or open a movie page.
+You can find the movie slug by browsing scenecinemas.com — it appears in the URL when you open a movie page (e.g. `.../movie-details/the-odyssey.html` → `the-odyssey`).
 
 ### 4. Enable Actions
 
@@ -54,7 +62,7 @@ You can find the slugs by browsing voxcinemas.com — they appear in the URL whe
 
 ## Changing what's monitored
 
-Update the repo variables (`CINEMA_SLUG`, `MOVIE_SLUG`, `TARGET_WEEKDAY`, `TIMEZONE`). No code change required.
+Update the repo variables (`MOVIE_SLUG`, `TARGET_WEEKDAY`, `TIMEZONE`, and optionally `MOVIE_BASE_URL`). No code change required.
 
 ## State file
 
@@ -72,4 +80,4 @@ To dry-run the script locally, export the env vars from the table above and run 
 ## Notes
 
 - GitHub free-tier scheduled workflows can drift 5–15 minutes during peak load. That's expected.
-- The page HTML is server-rendered — no headless browser needed. If VOX ever changes the structure, the script logs a warning and exits cleanly instead of crashing.
+- Showtimes are fetched from the site's own AJAX endpoint — no headless browser needed. If Scene Cinemas ever changes the fragment structure, `parse_showtimes` returns an empty result and the script exits cleanly (treated as "not yet") instead of crashing.
