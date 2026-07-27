@@ -7,6 +7,14 @@
       "target": { "weekday": "friday" }
     },
     {
+      "id": "odyssey-almaza-aug5",
+      "site": "vox",
+      "movie_slug": "the-odyssey",
+      "cinema_slug": "city-centre-almaza",
+      "target": { "date": "2026-08-05" },
+      "notify_on": "bookable"
+    },
+    {
       "id": "spiderman-almaza-aug6",
       "site": "vox",
       "movie_slug": "spider-man-brand-new-day",
