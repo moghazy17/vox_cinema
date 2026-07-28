@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A single-purpose scraper + notifier: a GitHub Actions cron job runs `check_showtimes.py`, which
 checks whether a cinema has published showtimes for a given movie on a given date, and Telegrams
 once per watch when they go live. There is no server, no package, no build — the repo root *is* the
-deployable unit.
+deployable unit. The one exception is `scheduler/`, an independently deployed Cloudflare Worker that
+does nothing but trigger the workflow on time (see below); it contains no scraping logic.
 
 The directory is still named `vox_cinema` for historical reasons; it now watches both VOX Cinemas
 Egypt and Scene Cinemas District 5.
@@ -80,6 +81,15 @@ Load-bearing details that aren't obvious from the code:
 - **`vox_display_names` is scoped on purpose.** It reads `article.movie-compare h2`, not the first
   `<h2>` — the page footer has `<h2>Stay in touch</h2>`, which a bare `find("h2")` returns whenever
   the movie block is absent.
+- **Cloudflare owns the clock, Actions owns the run.** GitHub's `schedule` trigger is
+  deprioritized: it drifts 10-60 minutes and drops firings rather than backfilling them, so `*/10`
+  degraded to roughly hourly. API-dispatched runs don't queue that way, so `scheduler/` (a Worker on
+  a `*/15` cron) POSTs to the `workflow_dispatch` endpoint and the workflow's own `schedule` block
+  is now just a fallback at off-peak offsets. **Don't port the scraper into the Worker** — `fetch()`
+  there can't do `curl_cffi`'s TLS impersonation, so it would be back to 403s with no workaround.
+  The Worker needs a fine-grained PAT with **Actions: write** on this repo only, stored via
+  `wrangler secret put`. Expect duplicate runs occasionally (Worker + fallback); `state.json`
+  dedupes them.
 - **State is committed back to the repo.** `state.json` maps `{watch_id: "YYYYMMDD"}`; the workflow
   commits it after a notification. That's the dedupe mechanism. `load_state` migrates the legacy
   flat-string form onto the first watch. A watch's `id` *is* its dedupe key — renaming an id

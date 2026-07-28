@@ -1,8 +1,12 @@
 name: Check Showtimes
 
 on:
+  # Fallback only. The real clock is the Cloudflare Worker in scheduler/, which
+  # dispatches this workflow every 15 minutes and actually keeps to it; GitHub's
+  # own scheduler drifts 10-60 minutes and drops firings under load. The odd
+  # offsets avoid the round-number congestion that makes that worst.
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:

@@ -2,7 +2,7 @@
 
 Get a Telegram message the moment a movie's showtimes go live — so you can book before it sells out.
 
-Checks every 10 minutes via GitHub Actions. One message per movie per date, no repeats.
+Checks every 15 minutes via GitHub Actions. One message per movie per date, no repeats.
 
 Works with **VOX Cinemas Egypt**, **Scene Cinemas District 5**, or both at once.
 
@@ -48,7 +48,20 @@ Optionally, under the **Variables** tab, add `TIMEZONE` (e.g. `Africa/Cairo`). D
 
 ### Step 5 — Choose what to watch
 
-Edit [`watches.json`](watches.json) and commit. Pick the recipe you need below. 👇
+Edit [`watches.json`](watches.json) and commit — pick the recipe you need from
+[What to put in `watches.json`](#what-to-put-in-watchesjson) below.
+
+That's everything. It's now running.
+
+### Step 6 — *(optional)* Make the timing precise
+
+GitHub's scheduler is best-effort: it can drift 10–60 minutes when Actions is busy, and sometimes
+skips a check entirely. Fine for "tell me when the schedule is out", frustrating for "tell me the
+second seats go on sale".
+
+If you want 15 minutes to actually mean 15 minutes, deploy the small Cloudflare Worker in
+[`scheduler/`](scheduler/) — it presses the button on time instead. Free, ~5 minutes to set up, and
+it changes nothing about how the checks themselves work. Instructions: [`scheduler/README.md`](scheduler/README.md).
 
 ---
 
@@ -227,7 +240,7 @@ $env:WATCHES_FILE = "my-test.json"; python check_showtimes.py   # Windows PowerS
 
 ## Notes
 
-- Scheduled runs on GitHub's free tier can drift 5–15 minutes when it's busy. Normal.
+- GitHub's own scheduler is best-effort and can drift 10–60 minutes, or skip a firing entirely — see [Step 6](#step-6--optional-make-the-timing-precise) if that matters to you.
 - No headless browser — showtimes come from each site's own endpoints, via `curl_cffi` with Chrome TLS impersonation (both sites reject plain `requests`).
 - If a site redesigns its pages, the run exits cleanly as "nothing yet" instead of crashing. VOX would be silent about it, so the script logs a warning when a page has neither showtimes nor the expected "no showtimes" notice.
 

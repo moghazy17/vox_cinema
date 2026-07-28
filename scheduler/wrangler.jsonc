@@ -1,0 +1,21 @@
+{
+  // No "$schema" key: wrangler is run via npx here, so there's no local
+  // node_modules for an editor to resolve it against.
+  "name": "vox-cinema-scheduler",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-01",
+
+  // Logs for cron firings — without this, a failed dispatch is invisible unless
+  // you happen to be running `wrangler tail`.
+  "observability": { "enabled": true },
+
+  // Every 15 minutes. 96 firings/day, against a free-plan budget of 100,000.
+  "triggers": { "crons": ["*/15 * * * *"] },
+
+  "vars": {
+    "GITHUB_REPO": "moghazy17/vox_cinema",
+    "GITHUB_REF": "main"
+  }
+
+  // GITHUB_TOKEN is a secret, not a var: `wrangler secret put GITHUB_TOKEN`.
+}

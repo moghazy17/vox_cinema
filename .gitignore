@@ -6,6 +6,11 @@
 # embed literal secrets. Never commit.
 .claude/settings.local.json
 
+# Cloudflare Worker scheduler — local secrets and build/dev artefacts.
+scheduler/.dev.vars
+scheduler/node_modules/
+scheduler/.wrangler/
+
 __pycache__/
 *.pyc
 .pytest_cache/
