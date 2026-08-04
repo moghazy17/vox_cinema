@@ -29,6 +29,14 @@
       "cinema_slug": "mall-of-egypt",
       "target": { "date": "2026-08-07" },
       "notify_on": "bookable"
+    },
+    {
+      "id": "odyssey-almaza-aug9",
+      "site": "vox",
+      "movie_slug": "the-odyssey",
+      "cinema_slug": "city-centre-almaza",
+      "target": { "date": "2026-08-09" },
+      "notify_on": "bookable"
     }
   ]
 }
