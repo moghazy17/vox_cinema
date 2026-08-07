@@ -39,11 +39,11 @@
       "notify_on": "bookable"
     },
     {
-      "id": "spiderman-almaza-friday",
+      "id": "spiderman-almaza-aug14",
       "site": "vox",
       "movie_slug": "spider-man-brand-new-day",
       "cinema_slug": "city-centre-almaza",
-      "target": { "weekday": "friday" },
+      "target": { "date": "2026-08-14" },
       "notify_on": "bookable"
     }
   ]
