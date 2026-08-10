@@ -45,6 +45,14 @@
       "cinema_slug": "city-centre-almaza",
       "target": { "date": "2026-08-14" },
       "notify_on": "bookable"
+    },
+    {
+      "id": "odyssey-almaza-aug14",
+      "site": "vox",
+      "movie_slug": "the-odyssey",
+      "cinema_slug": "city-centre-almaza",
+      "target": { "date": "2026-08-14" },
+      "notify_on": "bookable"
     }
   ]
 }
