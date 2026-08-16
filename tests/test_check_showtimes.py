@@ -236,10 +236,14 @@ def test_repo_watches_file_is_valid():
     assert odyssey.site == "scene"
     assert odyssey.notify_on == "published", "Odyssey's original trigger must not change"
 
-    spiderman = by_id["spiderman-almaza-aug6"]
-    assert spiderman.target_date == date(2026, 8, 6)
-    assert spiderman.site == "vox"
-    assert spiderman.notify_on == "bookable"
+    # The VOX watches are fixed-date and get retired once their date passes, so
+    # assert their shape rather than any one date — pinning a specific date here
+    # fails the suite the moment a spent watch is cleaned out of watches.json.
+    vox = [w for w in watches if w.site == "vox"]
+    assert vox, "at least one VOX watch must stay configured"
+    for w in vox:
+        assert w.cinema_slug, f"{w.id}: VOX watches require a cinema_slug"
+        assert w.notify_on == "bookable", f"{w.id}: VOX watches alert on bookable"
 
 
 # ------------------------------------------------------------------ notify triggers
