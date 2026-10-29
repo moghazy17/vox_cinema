@@ -323,6 +323,11 @@
       "0047-277011": "20261223"
     }
   },
+  "movie_listed": {
+    "avengers-doomsday": [
+      "scene:cairo-festival-city:avengers-doomsday-infinity-vision-sx-4dx"
+    ]
+  },
   "notified_for": {
     "odyssey-almaza-aug14": "20260814",
     "odyssey-almaza-aug20": "20260820",
