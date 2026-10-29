@@ -512,12 +512,41 @@
       "scene:cairo-festival-city:20261223:12:00 AM3D:ScreenX": "20261223",
       "scene:cairo-festival-city:20261223:12:00 AM:ScreenX": "20261223",
       "scene:cairo-festival-city:20261223:12:00 PM3D:ScreenX": "20261223",
-      "scene:cairo-festival-city:20261223:12:00 PM:ScreenX": "20261223"
+      "scene:cairo-festival-city:20261223:12:00 PM:ScreenX": "20261223",
+      "scene:district-5:20261217:04:00 PM:Standard & Deluxe": "20261217",
+      "scene:district-5:20261217:08:00 PM:Standard & Deluxe": "20261217",
+      "scene:district-5:20261217:11:45 PM:Standard & Deluxe": "20261217",
+      "scene:district-5:20261217:12:00 PM:Standard & Deluxe": "20261217",
+      "scene:district-5:20261218:04:00 PM:Standard & Deluxe": "20261218",
+      "scene:district-5:20261218:08:00 PM:Standard & Deluxe": "20261218",
+      "scene:district-5:20261218:11:45 PM:Standard & Deluxe": "20261218",
+      "scene:district-5:20261218:12:00 PM:Standard & Deluxe": "20261218",
+      "scene:district-5:20261219:04:00 PM:Standard & Deluxe": "20261219",
+      "scene:district-5:20261219:08:00 PM:Standard & Deluxe": "20261219",
+      "scene:district-5:20261219:11:45 PM:Standard & Deluxe": "20261219",
+      "scene:district-5:20261219:12:00 PM:Standard & Deluxe": "20261219",
+      "scene:district-5:20261220:04:00 PM:Standard & Deluxe": "20261220",
+      "scene:district-5:20261220:08:00 PM:Standard & Deluxe": "20261220",
+      "scene:district-5:20261220:11:45 PM:Standard & Deluxe": "20261220",
+      "scene:district-5:20261220:12:00 PM:Standard & Deluxe": "20261220",
+      "scene:district-5:20261221:04:00 PM:Standard & Deluxe": "20261221",
+      "scene:district-5:20261221:08:00 PM:Standard & Deluxe": "20261221",
+      "scene:district-5:20261221:11:45 PM:Standard & Deluxe": "20261221",
+      "scene:district-5:20261221:12:00 PM:Standard & Deluxe": "20261221",
+      "scene:district-5:20261222:04:00 PM:Standard & Deluxe": "20261222",
+      "scene:district-5:20261222:08:00 PM:Standard & Deluxe": "20261222",
+      "scene:district-5:20261222:11:45 PM:Standard & Deluxe": "20261222",
+      "scene:district-5:20261222:12:00 PM:Standard & Deluxe": "20261222",
+      "scene:district-5:20261223:04:00 PM:Standard & Deluxe": "20261223",
+      "scene:district-5:20261223:08:00 PM:Standard & Deluxe": "20261223",
+      "scene:district-5:20261223:11:45 PM:Standard & Deluxe": "20261223",
+      "scene:district-5:20261223:12:00 PM:Standard & Deluxe": "20261223"
     }
   },
   "movie_listed": {
     "avengers-doomsday": [
-      "scene:cairo-festival-city:avengers-doomsday-infinity-vision-sx-4dx"
+      "scene:cairo-festival-city:avengers-doomsday-infinity-vision-sx-4dx",
+      "scene:district-5:avengers-doomsday-infinity-vision-sx-4dx"
     ]
   },
   "notified_for": {
